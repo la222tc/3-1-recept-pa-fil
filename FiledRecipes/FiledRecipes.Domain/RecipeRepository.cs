@@ -127,5 +127,135 @@ namespace FiledRecipes.Domain
                 handler(this, e);
             }
         }
+
+
+        public void Load()
+        {
+            // Skapar en lista med referens till receptojekt
+            List<IRecipe> listOfRecipies = new List<IRecipe>();
+            // Instansiserer Enumtyperna
+            RecipeReadStatus recipestatus = new RecipeReadStatus();
+            Recipe recipe = null;
+
+            try
+            {
+                // Öppnar en textfil för läsning
+                using (StreamReader reader = new StreamReader(_path))
+                {
+                    string line;
+
+                    // Läser filen rad för rad
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        // Om det är en avdelning för nytt recept
+                        if (line == SectionRecipe)
+                        {
+                            recipestatus = RecipeReadStatus.New;         // sätt status till att nästa rad som läses in kommer att vara receptets namn
+                        }
+
+                        // eller om det är avdelningen för ingredienser
+                        else if (line == SectionIngredients)
+                        {
+                            recipestatus = RecipeReadStatus.Ingredient;  // sätt status till att kommande rader som läses in kommer att vara receptets ingredienser
+                        }
+
+                        // eller om det är avdelningen för instruktioner
+                        else if (line == SectionInstructions)
+                        {
+                            recipestatus = RecipeReadStatus.Instruction; // sätt status till att kommande rader som läses in kommer att vara receptets instruktioner
+                        }
+
+                        // annars är det ett namn, en ingrediens eller en instruktion
+                        else
+                        {
+
+                            // Om status är satt att raden ska tolkas som ett recepts namn
+                            if (recipestatus == RecipeReadStatus.New)
+                            {
+                                recipe = new Recipe(line);               // Skapa nytt receptobjekt med receptets namn
+                                listOfRecipies.Add(recipe);
+                            }
+
+                            // eller om status är satt att raden ska tolkas som en ingrediens
+                            else if (recipestatus == RecipeReadStatus.Ingredient)
+                            {
+                                string[] values = line.Split(';');      // Delar upp raden i delar
+
+
+                                // Om antalet delar inte är tre
+                                if (values.Length != 3)
+                                {
+                                    throw new FileFormatException();    // Kasta ett undantag
+                                }
+
+                                // Skapar ett ingrediensobjekt och initiera det med de tre delarna för mängd, mått och namn
+                                Ingredient ingredients = new Ingredient();
+                                ingredients.Amount = values[0];
+                                ingredients.Measure = values[1];
+                                ingredients.Name = values[2];
+                                recipe.Add(ingredients);            // Lägg till ingrediensen till receptets lista med ingredienser
+                            }
+
+                            // eller om status är satt att raden ska tolkas som en instruktion
+                            else if (recipestatus == RecipeReadStatus.Instruction)
+                            {
+                                recipe.Add(line);       // Lägger till raden till receptets lista med instruktioner
+                            }
+
+                            else 
+                            {
+                                throw new FileFormatException();
+                            }
+                        }
+                    }
+                }
+
+                // Sorterar Listan av recept och tilldelar avsett fält i klassen, _recipes, en referens till listan
+                _recipes = listOfRecipies.OrderBy(r => recipe.Name).ToList();
+                IsModified = false;                         // Tilldelar IsModified värdet false som indikerar att listan med recept är oförändrad
+                OnRecipesChanged(EventArgs.Empty);          // Utlös händelse om att recept har lästs in genom att anropa metoden OnRecipesChanged och skicka med parametern EventArgs.Empty
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+        }
+
+        public void Save()
+        {
+            try
+            {
+                using (StreamWriter write = new StreamWriter(_path))
+                {
+                    foreach (Recipe recipe in _recipes)
+                    {
+                        // Skriver ut konstanten SectionRecipe och recept namnet
+                        write.WriteLine(SectionRecipe);
+                        write.WriteLine(recipe.Name);
+
+
+                        // Skriver ut konstanten SectionIngredients och ingredienserna med ; i mellan Amount, Measure och Name
+                        write.WriteLine(SectionIngredients);
+                        foreach (Ingredient ingredients in recipe.Ingredients)
+                        {
+                            write.WriteLine("{0};{1};{2}", ingredients.Amount, ingredients.Measure, ingredients.Name);
+                        }
+
+                        // Skriver ut konstanten SectionInstructions och instruktionerna
+                        write.WriteLine(SectionInstructions);
+                        foreach (string instructions in recipe.Instructions)
+                        {
+                            write.WriteLine(instructions);
+                        }
+                    }
+                }
+            }
+
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+        }
     }
 }
